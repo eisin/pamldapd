@@ -1,4 +1,6 @@
 pamldapd
 pamldapd.json
+pamldapd-i386
+pamldapd-x86-64
 *.test
 *.out
