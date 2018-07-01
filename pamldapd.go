@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/msteinert/pam"
 	"github.com/nmcclain/asn1-ber"
@@ -27,36 +29,57 @@ type Backend struct {
 	BindAdminPassword string
 }
 
-var logger = log.New(os.Stdout, "", log.LstdFlags)
-
 func main() {
-	logger.Println("start")
+	var configfile = flag.String("c", "pamldapd.json", "Configuration file")
+	var logfile = flag.String("l", "", "Log file (STDOUT if blank)")
+	flag.Parse()
+	var backend = Backend{}
+	{
+		confighandle, err := os.Open(*configfile)
+		if err != nil {
+			fmt.Printf("Could not read: %s\n", err)
+			os.Exit(1)
+		}
+		decoder := json.NewDecoder(confighandle)
+		if err := decoder.Decode(&backend); err != nil {
+			fmt.Printf("Could not decode configuration configfile %s: %s\n", *configfile, err)
+			confighandle.Close()
+			os.Exit(1)
+		}
+		confighandle.Close()
+	}
+	if *logfile == "" {
+		backend.logger = log.New(os.Stdout, "", log.LstdFlags)
+	} else {
+		loghandle, err := os.OpenFile(*logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			fmt.Printf("Could not open log file: %s\n", err)
+			os.Exit(1)
+		}
+		defer loghandle.Close()
+		log.SetOutput(loghandle)
+		backend.logger = log.New(loghandle, "", log.LstdFlags)
+	}
+
 	l := ldap.NewServer()
 	l.EnforceLDAP = true
-	var backend = Backend{
-		PAMServiceName:    "password-auth",
-		logger:            logger,
-		Listen:            "127.0.0.1:10389",
-		BaseDN:            "dc=example,dc=com",
-		PeopleDN:          "ou=people,dc=example,dc=com",
-		GroupsDN:          "ou=groups,dc=example,dc=com",
-		BindAdminDN:       "uid=user,dc=example,dc=com",
-		BindAdminPassword: "password",
-	}
 	l.BindFunc("", backend)
 	l.SearchFunc("", backend)
 	l.CloseFunc("", backend)
+	backend.logger.Printf("LDAP server listen: %s", backend.Listen)
 	if err := l.ListenAndServe(backend.Listen); err != nil {
-		backend.logger.Fatalf("LDAP serve failed: %s", err.Error())
+		backend.logger.Fatalf("LDAP server listen failed: %s", err.Error())
 	}
 }
 
 func (b Backend) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultCode ldap.LDAPResultCode, err error) {
-	b.logger.Printf("Bind attempt addr=%s bindDN=%s", conn.RemoteAddr().String(), bindDN)
+	var logger_title = fmt.Sprintf("Bind addr=%s bindDN=%s begin", conn.RemoteAddr().String(), bindDN)
+	b.logger.Printf("%s begin", logger_title)
 	if bindDN == b.BindAdminDN {
 		if bindSimplePw != b.BindAdminPassword {
 			return ldap.LDAPResultInvalidCredentials, errors.New("Password Incorrect")
 		}
+		b.logger.Printf("%s success as administrator", logger_title)
 		return ldap.LDAPResultSuccess, nil
 	} else {
 		var username string
@@ -66,16 +89,17 @@ func (b Backend) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultCode ld
 		if err := PAMAuth(b.PAMServiceName, username, bindSimplePw); err != nil {
 			return ldap.LDAPResultInvalidCredentials, err
 		}
+		b.logger.Printf("%s success as normal user", logger_title)
 		return ldap.LDAPResultSuccess, nil
 	}
 }
 
 func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (result ldap.ServerSearchResult, err error) {
-	b.logger.Printf("Search bindDN=%s baseDN=%s filter=%s addr=%s", bindDN, req.BaseDN, req.Filter, conn.RemoteAddr().String())
+	var logger_title = fmt.Sprintf("Search bindDN=%s baseDN=%s filter=%s addr=%s", bindDN, req.BaseDN, req.Filter, conn.RemoteAddr().String())
+	b.logger.Printf("%s begin", logger_title)
 	filterObjectClass, err := ldap.GetFilterObjectClass(req.Filter)
 	if err != nil {
-		b.logger.Printf("Search Error: error parsing ObjectClass: %s", req.Filter)
-		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("Search Error: error parsing ObjectClass: %s", req.Filter)
+		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("%s error parsing ObjectClass: %s", logger_title, req.Filter)
 	}
 	var username string
 	var user_entity_name string
@@ -84,14 +108,13 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 	} else if filterObjectClass == "posixgroup" {
 		user_entity_name = "memberUid"
 	} else {
-		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("Filter does not contain objectclass=posixaccount nor objectclass=posixgroup")
+		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("%s error: Filter does not contain objectclass=posixaccount nor objectclass=posixgroup", logger_title)
 	}
 
 	if bindDN == b.BindAdminDN {
 		filterUid, err := GetFilterEntity(user_entity_name, req.Filter)
 		if err != nil {
-			b.logger.Printf("Search Error: error find condition uid: %s", req.Filter)
-			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("Search Error: error find condition uid: %s", req.Filter)
+			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("%s error find condition uid: %s", logger_title, req.Filter)
 		}
 		username = filterUid
 	} else {
@@ -109,7 +132,7 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, err
 		}
 	} else {
-		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("Filter does not contain objectclass=posixaccount nor objectclass=posixgroup")
+		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("%s error: Filter does not contain objectclass=posixaccount nor objectclass=posixgroup", logger_title)
 	}
 	return ldap.ServerSearchResult{[]*ldap.Entry{entry}, []string{}, []ldap.Control{}, ldap.LDAPResultSuccess}, nil
 

@@ -1,3 +1,4 @@
 pamldapd
+pamldapd.json
 *.test
 *.out
