@@ -36,6 +36,14 @@ This guide is based on Amazon Linux
   build binaries both x86-64 and i386:
   $ make all
 
+. (Build without docker)
+
+  $ yum install -y gcc golang pam-devel
+  $ go get github.com/msteinert/pam
+  $ go get github.com/nmcclain/asn1-ber
+  $ go get github.com/nmcclain/ldap
+  $ go build -a src/pamldapd.go
+
 . Install to PATH directory (optional)
 
   copy x86-64 binary to bin directory:
@@ -130,7 +138,10 @@ Tree structure of example configuration file `pamldapd.json.example`
 
 ## Restriction
 
+While `pamldapd` uses PAM as authentication, some restrictions exist.
+
 * When search operations, filter can be almost two patterns: `(&(uid=user)(objectClass=posixAccount))` or `(&(memberUid=user)(objectClass=posixgroup))`
 ** Must be included `objectclass` , like `(objectclass=posixAccount)` or `(objectclass=posixGroup)` . Other than that, for example `(objectclass=*)`, it will fail.
-** Must be identified one record by username key. Enumeration is not supported.
+** Must be identified one record by specifying username attribute. Enumeration is not supported.
 
+* When search operation, an entry does not have `unixpassword` attribute.
