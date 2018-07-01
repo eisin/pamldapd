@@ -1,3 +1,136 @@
-# pamldapd Simple LDAP server, uses PAM as backend 
+# `pamldapd` Simple LDAP server, uses PAM as backend
 
+## Getting Started
+
+### Requirements
+
+This guide is based on Amazon Linux
+
+. Check requirements is installed
+
+ $ rpm -q git make docker
+
+. Check the Docker works without `sudo`
+
+ $ docker ps
+
+. Check the free disk space (at least 2GB-3GB needed)
+
+ $ df -h
+
+### Download and Build
+
+. Clone a repository
+
+  $ git clone https://github.com/eisin/pamldapd
+  $ cd pamldapd
+
+. Build using Docker
+  
+  build only x86-64:
+  $ make
+
+  build only i386:
+  $ make i386
+
+  build binaries both x86-64 and i386:
+  $ make all
+
+. Install to PATH directory (optional)
+
+  copy x86-64 binary to bin directory:
+  $ sudo install pamldapd-x86-64 /usr/bin/pamldapd
+
+. Prepare configuration file
+
+  $ cp pamldapd.json.example pamldapd.json
+  $ vi pamldapd.json
+
+### Start `pamldapd`
+
+While pamldapd uses PAM authentication, root privilege is required.
+
+ $ pamldapd -h
+ 
+ Usage of pamldapd:
+   -c string
+         Configuration file (default "pamldapd.json")
+   -l string
+         Log file (STDOUT if blank)
+
+Start using configuration file, puts messages to STDOUT
+
+ $ sudo pamldapd -c pamldapd.json
+ 
+Start using configuration file, puts messages to a log file
+
+ $ sudo pamldapd -c pamldapd.json -l /var/log/pamldapd.log
+ 
+## Configuration
+
+Example Configuration:
+
+ {
+         "listen": "127.0.0.1:10389",
+         "pamServicename": "password-auth",
+         "peopledn": "ou=people,dc=example,dc=com",
+         "groupsdn": "ou=groups,dc=example,dc=com",
+         "bindadmindn": "uid=user,dc=example,dc=com",
+         "bindadminpassword": "password"
+ }
+
+`listen` ::
+Listen IP address and port like `0.0.0.0:0000`
+
+`pamservicename` ::
+PAM authentication requires service-name like `login`, `su`. You can choose existing service or create a new. Existing service can be seen typing `ls /etc/pam.d/`
+For more service, see http://www.linux-pam.org/Linux-PAM-html/sag-configuration-file.html
+
+`peopledn` ::
+Specify base distinguish name of users.
+
+`groupsdn` ::
+Specify base distinguish name of groups.
+
+`bindadmindn` ::
+Specify distinguish name of administrator account.
+
+`bindadminpassword` ::
+Specify password of administrator account.
+
+## LDAP tree structure example
+
+Tree structure of example configuration file `pamldapd.json.example`
+
+ dc=com
+     dc=example
+         ou=people
+             uid=user
+                 objectClass=posixAccount
+                 cn=user
+                 uidNumber=501
+                 gidNumber=501
+                 homeDirectory=/home/user
+                 givenName=User
+             uid=user2
+                 objectClass=posixAccount
+                 :
+             :
+         ou=groups
+             cn=user
+                 objectClass=posixGroup
+                 cn=user
+                 gidNumber=501
+                 memberUid=501
+             cn=user2
+                 objectClass=posixGroup
+                 :
+             :
+         uid=adminuser
+
+## Restriction
+
+* When search operations, filter can be almost two patterns: `(&(uid=user)(objectClass=posixAccount))` or `(&(memberUid=user)(objectClass=posixgroup))`
+** Must be included `objectclass` , like `(objectclass=posixAccount)` or `(objectclass=posixGroup)` . Other than that, for example `(objectclass=*)`, it will fail.
+** Must be identified one record by username key. Enumeration is not supported.
 

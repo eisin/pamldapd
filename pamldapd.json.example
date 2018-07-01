@@ -1,8 +1,8 @@
 {
 	"listen": "127.0.0.1:10389",
-	"pamServicename": "password-auth",
+	"pamservicename": "password-auth",
 	"peopledn": "ou=people,dc=example,dc=com",
 	"groupsdn": "ou=groups,dc=example,dc=com",
-	"bindadmindn": "uid=user,dc=example,dc=com",
+	"bindadmindn": "uid=adminuser,dc=example,dc=com",
 	"bindadminpassword": "password"
 }
