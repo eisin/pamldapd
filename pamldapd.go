@@ -21,7 +21,6 @@ type Backend struct {
 	ldap.Closer
 	logger            *log.Logger
 	Listen            string
-	BaseDN            string
 	PAMServiceName    string
 	PeopleDN          string
 	GroupsDN          string
@@ -61,6 +60,15 @@ func main() {
 		backend.logger = log.New(loghandle, "", log.LstdFlags)
 	}
 
+	current_user, err := user.Current()
+	if err != nil {
+		fmt.Printf("Could not get current user: %s\n", err)
+		os.Exit(1)
+	}
+	if current_user.Uid != "0" {
+		backend.logger.Printf("WARNING: PAM authentication will fail because not running as root user")
+	}
+
 	l := ldap.NewServer()
 	l.EnforceLDAP = true
 	l.BindFunc("", backend)
@@ -73,7 +81,7 @@ func main() {
 }
 
 func (b Backend) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultCode ldap.LDAPResultCode, err error) {
-	var logger_title = fmt.Sprintf("Bind addr=%s bindDN=%s begin", conn.RemoteAddr().String(), bindDN)
+	var logger_title = fmt.Sprintf("Bind addr=%s bindDN=%s", conn.RemoteAddr().String(), bindDN)
 	b.logger.Printf("%s begin", logger_title)
 	if bindDN == b.BindAdminDN {
 		if bindSimplePw != b.BindAdminPassword {
@@ -140,7 +148,7 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 }
 
 func (b Backend) Close(bindDN string, conn net.Conn) (err error) {
-	b.logger.Printf("Close addr=%s bindDN=%s", conn.RemoteAddr().String(), bindDN)
+	b.logger.Printf("Close addr=%s", conn.RemoteAddr().String())
 	return nil
 }
 
