@@ -1,0 +1,11 @@
+FROM i386/centos:7
+ENV PATH $PATH:/usr/local/go/bin
+RUN linux32 sh -c 'yum install -y gcc git pam-devel \
+ && curl -o go1.10.3.linux-386.tar.gz https://dl.google.com/go/go1.10.3.linux-386.tar.gz \
+ && tar -C /usr/local -xzf go1.10.3.linux-386.tar.gz \
+ && go get github.com/msteinert/pam \
+ && go get github.com/nmcclain/asn1-ber \
+ && go get github.com/nmcclain/ldap'
+COPY src /root/go/src
+RUN linux32 sh -c 'cd /root/go/src \
+ && go build -a pamldapd.go'
