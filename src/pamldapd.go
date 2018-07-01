@@ -76,7 +76,8 @@ func main() {
 	l.CloseFunc("", backend)
 	backend.logger.Printf("LDAP server listen: %s", backend.Listen)
 	if err := l.ListenAndServe(backend.Listen); err != nil {
-		backend.logger.Fatalf("LDAP server listen failed: %s", err.Error())
+		backend.logger.Printf("LDAP server listen failed: %s", err.Error())
+		os.Exit(1)
 	}
 }
 

@@ -1,9 +1,9 @@
 .DEFAULT_GOAL := default
 
-all: x86-64 i386
-default: x86-64
-x86-64: x86-64.build
-i386: i386.build
+all: pamldapd-x86-64 pamldapd-i386
+default: pamldapd-x86-64
+pamldapd-x86-64: x86-64.build Dockerfile_x86-64
+pamldapd-i386: i386.build Dockerfile_i386
 %.build: src/pamldapd.go
 	@echo BUILD ARCH $(shell basename $@ .build)
 	docker build -t pamldapd-build-$(shell basename $@ .build)-tmp -f Dockerfile_$(shell basename $@ .build) .
