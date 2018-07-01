@@ -8,4 +8,4 @@ RUN linux32 sh -c 'yum install -y gcc git pam-devel \
  && go get github.com/nmcclain/ldap'
 COPY src /root/go/src
 RUN linux32 sh -c 'cd /root/go/src \
- && go build -a pamldapd.go'
+ && env GOOS=linux GOARCH=386 go build -a -ldflags "-extldflags \"-Wl,--hash-style=both\"" -x pamldapd.go'
