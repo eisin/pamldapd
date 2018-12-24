@@ -131,6 +131,9 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, err
 		}
 	}
+	if req.BaseDN == "" {
+		return ldap.ServerSearchResult{make([]*ldap.Entry, 0), []string{}, []ldap.Control{}, ldap.LDAPResultSuccess}, nil
+	}
 	var entry *ldap.Entry
 	if filterObjectClass == "posixaccount" || filterObjectClass == "" {
 		if entry, err = b.makeSearchEntryAccount("cn="+username+","+b.PeopleDN, username); err != nil {
