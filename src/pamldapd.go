@@ -125,9 +125,13 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 		if err != nil {
 			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("%s error find condition uid: %s", logger_title, req.Filter)
 		}
-		username = filterUid
+		if binddn_username, err := b.getUserNameFromBaseDN(req.BaseDN); err == nil {
+			username = binddn_username
+		} else {
+			username = filterUid
+		}
 	} else {
-		if username, err = b.getUserNameFromBindDN(bindDN); err != nil {
+		if username, err = b.getUserNameFromBindDN(req.BaseDN); err != nil {
 			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, err
 		}
 	}
@@ -198,6 +202,30 @@ func (b Backend) getUserNameFromBindDN(bindDN string) (username string, err erro
 		username = strings.TrimPrefix(rest, "cn=")
 	} else {
 		return "", errors.New("bindDN contains no cn/uid entry")
+	}
+	return username, nil
+}
+
+func (b Backend) getUserNameFromBaseDN(baseDN string) (username string, err error) {
+	if baseDN == "" {
+		return "", errors.New("baseDN not specified")
+	}
+	if !strings.HasSuffix(baseDN, ","+b.PeopleDN) {
+		return "", errors.New("baseDN not matched")
+	}
+	rest := strings.TrimSuffix(baseDN, ","+b.PeopleDN)
+	if rest == "" {
+		return "", errors.New("baseDN format error")
+	}
+	if strings.Contains(rest, ",") {
+		return "", errors.New("baseDN has too much entities")
+	}
+	if strings.HasPrefix(rest, "uid=") {
+		username = strings.TrimPrefix(rest, "uid=")
+	} else if strings.HasPrefix(rest, "cn=") {
+		username = strings.TrimPrefix(rest, "cn=")
+	} else {
+		return "", errors.New("baseDN contains no cn/uid entry")
 	}
 	return username, nil
 }
