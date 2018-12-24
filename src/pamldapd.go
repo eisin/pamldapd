@@ -131,7 +131,7 @@ func (b Backend) Search(bindDN string, req ldap.SearchRequest, conn net.Conn) (r
 			username = filterUid
 		}
 	} else {
-		if username, err = b.getUserNameFromBindDN(req.BaseDN); err != nil {
+		if username, err = b.getUserNameFromBindDN(bindDN); err != nil {
 			return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, err
 		}
 	}
